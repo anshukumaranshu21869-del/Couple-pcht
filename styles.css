@@ -257,3 +257,55 @@ footer {
 
   .dashboard-head { align-items: stretch; }
 }
+
+
+/* Firebase real-time chat states */
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #c62828;
+}
+
+.empty-chat {
+  min-height: 190px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  text-align: center;
+}
+
+.chat-bubble {
+  display: block;
+  width: fit-content;
+  max-width: 82%;
+  margin: 8px 0;
+  padding: 10px 14px 7px;
+  word-break: break-word;
+}
+
+.chat-bubble.sent {
+  margin-left: auto;
+  background: var(--primary);
+  color: white;
+  border-radius: 16px 16px 4px 16px;
+}
+
+.chat-bubble.received {
+  margin-right: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 16px 4px;
+}
+
+.chat-bubble small {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
