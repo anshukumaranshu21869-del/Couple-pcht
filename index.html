@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="CoupleVerse — a private space for couples to chat, watch and play together." />
+  <title>CoupleVerse ❤️</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">CoupleVerse <span>❤️</span></div>
+    <button id="themeBtn" class="ghost-btn" aria-label="Toggle theme">🌙</button>
+  </header>
+
+  <main>
+    <section id="homeScreen" class="screen active">
+      <div class="hero-card">
+        <p class="eyebrow">YOUR PRIVATE COUPLE SPACE</p>
+        <h1>Talk, watch and play together.</h1>
+        <p class="subtext">Create a private room for you and your partner.</p>
+
+        <div class="actions">
+          <button id="createRoomBtn" class="primary-btn">Create Couple Room</button>
+          <button id="showJoinBtn" class="secondary-btn">Join With Code</button>
+        </div>
+
+        <div id="joinBox" class="join-box hidden">
+          <input id="roomCodeInput" maxlength="8" placeholder="Enter room code" autocomplete="off" />
+          <button id="joinRoomBtn" class="primary-btn">Join Room</button>
+        </div>
+
+        <p id="homeMessage" class="message"></p>
+      </div>
+    </section>
+
+    <section id="dashboardScreen" class="screen">
+      <div class="dashboard-head">
+        <div>
+          <p class="eyebrow">PRIVATE ROOM</p>
+          <h2>Welcome to your couple space ❤️</h2>
+          <p>Room code: <strong id="roomCodeText">--------</strong></p>
+        </div>
+        <button id="leaveRoomBtn" class="danger-btn">Leave Room</button>
+      </div>
+
+      <div class="feature-grid">
+        <button class="feature-card" data-panel="chatPanel">
+          <span class="icon">💬</span>
+          <h3>Private Chat</h3>
+          <p>Send messages and reactions.</p>
+        </button>
+
+        <button class="feature-card" data-panel="watchPanel">
+          <span class="icon">🎬</span>
+          <h3>Watch Together</h3>
+          <p>Open a YouTube video together.</p>
+        </button>
+
+        <button class="feature-card" data-panel="gamePanel">
+          <span class="icon">🎲</span>
+          <h3>Couple Game</h3>
+          <p>Play romantic question cards.</p>
+        </button>
+
+        <button class="feature-card" data-panel="lovePanel">
+          <span class="icon">💖</span>
+          <h3>Daily Love Card</h3>
+          <p>Get a sweet daily question.</p>
+        </button>
+      </div>
+
+      <section id="chatPanel" class="panel hidden">
+        <div class="panel-head">
+          <h3>Private Chat Demo</h3>
+          <button class="close-panel">✕</button>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chatInput" maxlength="500" placeholder="Type a sweet message..." autocomplete="off" />
+          <button id="sendMessageBtn" class="primary-btn">Send</button>
+        </div>
+        <p class="note">Demo mode: messages are saved only on this device.</p>
+      </section>
+
+      <section id="watchPanel" class="panel hidden">
+        <div class="panel-head">
+          <h3>Watch Together Demo</h3>
+          <button class="close-panel">✕</button>
+        </div>
+        <div class="watch-input-row">
+          <input id="videoUrlInput" placeholder="Paste YouTube link" autocomplete="off" />
+          <button id="loadVideoBtn" class="primary-btn">Load Video</button>
+        </div>
+        <div id="videoWrap" class="video-wrap hidden">
+          <iframe
+            id="videoFrame"
+            title="YouTube video player"
+            src=""
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen>
+          </iframe>
+        </div>
+        <p id="videoMessage" class="message"></p>
+      </section>
+
+      <section id="gamePanel" class="panel hidden">
+        <div class="panel-head">
+          <h3>Couple Question Game</h3>
+          <button class="close-panel">✕</button>
+        </div>
+        <div class="game-card">
+          <p id="gameQuestion">Tap the button to get a question.</p>
+        </div>
+        <button id="newQuestionBtn" class="primary-btn">New Question</button>
+      </section>
+
+      <section id="lovePanel" class="panel hidden">
+        <div class="panel-head">
+          <h3>Daily Love Card</h3>
+          <button class="close-panel">✕</button>
+        </div>
+        <div class="love-card">
+          <span>💌</span>
+          <p id="dailyLoveText"></p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer>
+    <p>CoupleVerse demo • Never share private information with strangers.</p>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
