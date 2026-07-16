@@ -1,9 +1,11 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+
 import {
   getAuth,
   onAuthStateChanged,
   signInAnonymously
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
 import {
   getDatabase,
   get,
@@ -12,9 +14,7 @@ import {
   ref,
   serverTimestamp,
   set
-} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
-
-"use strict";
+} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAJ6oo2sDlhAOY_Z-igLKopxocbt8w7-GQ",
@@ -23,8 +23,7 @@ const firebaseConfig = {
   projectId: "coupleverse-5af32",
   storageBucket: "coupleverse-5af32.firebasestorage.app",
   messagingSenderId: "720450290648",
-  appId: "1:720450290648:web:5ab2c57ac2ef44a6baa8ad",
-  measurementId: "G-09HVHYS2B4"
+  appId: "1:720450290648:web:5ab2c57ac2ef44a6baa8ad"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -35,10 +34,12 @@ const $ = (id) => document.getElementById(id);
 
 const homeScreen = $("homeScreen");
 const dashboardScreen = $("dashboardScreen");
+
 const createRoomBtn = $("createRoomBtn");
 const showJoinBtn = $("showJoinBtn");
 const joinBox = $("joinBox");
 const joinRoomBtn = $("joinRoomBtn");
+
 const roomCodeInput = $("roomCodeInput");
 const roomCodeText = $("roomCodeText");
 const homeMessage = $("homeMessage");
@@ -48,7 +49,6 @@ const themeBtn = $("themeBtn");
 const chatInput = $("chatInput");
 const chatMessages = $("chatMessages");
 const sendMessageBtn = $("sendMessageBtn");
-const chatNote = document.querySelector("#chatPanel .note");
 
 const videoUrlInput = $("videoUrlInput");
 const loadVideoBtn = $("loadVideoBtn");
@@ -62,7 +62,7 @@ const dailyLoveText = $("dailyLoveText");
 
 let currentUser = null;
 let currentRoomCode = "";
-let unsubscribeMessages = null;
+let stopMessageListener = null;
 
 const questions = [
   "What is your favourite memory of us?",
@@ -83,302 +83,437 @@ const loveCards = [
   "Ask your partner how their day really felt."
 ];
 
-function setLoading(button, loading, loadingText) {
-  if (!button) return;
-  if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
-  button.disabled = loading;
-  button.textContent = loading ? loadingText : button.dataset.originalText;
+function showMessage(text, isError = false) {
+  homeMessage.textContent = text;
+  homeMessage.style.color = isError ? "#c62828" : "";
 }
 
-function showHomeMessage(message, isError = false) {
-  homeMessage.textContent = message;
-  homeMessage.classList.toggle("error-message", isError);
+function setButtonLoading(button, loading, text) {
+  if (!button.dataset.normalText) {
+    button.dataset.normalText = button.textContent;
+  }
+
+  button.disabled = loading;
+  button.textContent = loading ? text : button.dataset.normalText;
 }
 
 function generateRoomCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const values = new Uint32Array(6);
-  crypto.getRandomValues(values);
-  return Array.from(values, (value) => chars[value % chars.length]).join("");
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const randomValues = new Uint32Array(6);
+
+  crypto.getRandomValues(randomValues);
+
+  return Array.from(
+    randomValues,
+    value => characters[value % characters.length]
+  ).join("");
 }
 
-function openDashboard(code) {
-  currentRoomCode = code;
-  roomCodeText.textContent = code;
+async function getSignedInUser() {
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+
+  const result = await signInAnonymously(auth);
+  return result.user;
+}
+
+function openDashboard(roomCode) {
+  currentRoomCode = roomCode;
+  roomCodeText.textContent = roomCode;
+
   homeScreen.classList.remove("active");
   dashboardScreen.classList.add("active");
-  showHomeMessage("");
-  localStorage.setItem("coupleverseRoom", code);
-  listenToMessages(code);
+
+  localStorage.setItem("coupleverseRoom", roomCode);
+
+  showMessage("");
+  listenForMessages(roomCode);
 }
 
-function closeDashboard() {
-  if (unsubscribeMessages) {
-    unsubscribeMessages();
-    unsubscribeMessages = null;
+function leaveRoom() {
+  if (stopMessageListener) {
+    stopMessageListener();
+    stopMessageListener = null;
   }
+
   currentRoomCode = "";
   chatMessages.innerHTML = "";
+
   localStorage.removeItem("coupleverseRoom");
+
   dashboardScreen.classList.remove("active");
   homeScreen.classList.add("active");
+
   roomCodeInput.value = "";
 }
 
-async function ensureSignedIn() {
-  if (auth.currentUser) return auth.currentUser;
-  const credential = await signInAnonymously(auth);
-  return credential.user;
-}
-
 async function createRoom() {
-  setLoading(createRoomBtn, true, "Creating...");
-  showHomeMessage("Connecting securely...");
+  setButtonLoading(createRoomBtn, true, "Creating...");
+  showMessage("Secure room ban raha hai...");
 
   try {
-    const user = await ensureSignedIn();
-    let code = "";
-    let exists = true;
+    const user = await getSignedInUser();
 
-    for (let attempt = 0; attempt < 5 && exists; attempt += 1) {
-      code = generateRoomCode();
-      const snapshot = await get(ref(database, `rooms/${code}/createdBy`));
-      exists = snapshot.exists();
+    let roomCode = "";
+    let roomAlreadyExists = true;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      roomCode = generateRoomCode();
+
+      const roomSnapshot = await get(
+        ref(database, `rooms/${roomCode}`)
+      );
+
+      if (!roomSnapshot.exists()) {
+        roomAlreadyExists = false;
+        break;
+      }
     }
 
-    if (exists) throw new Error("Could not generate a unique room code.");
+    if (roomAlreadyExists) {
+      throw new Error("Unique room code generate nahi hua.");
+    }
 
-    // Room metadata is written first; then the creator is added as member.
-    await set(ref(database, `rooms/${code}/createdBy`), user.uid);
-    await set(ref(database, `rooms/${code}/createdAt`), serverTimestamp());
-    await set(ref(database, `rooms/${code}/members/${user.uid}`), true);
+    await set(ref(database, `rooms/${roomCode}`), {
+      createdBy: user.uid,
+      createdAt: serverTimestamp(),
+      members: {
+        [user.uid]: true
+      }
+    });
 
-    openDashboard(code);
+    openDashboard(roomCode);
   } catch (error) {
-    console.error("Create room failed:", error);
-    showHomeMessage("Room create nahi hua. Firebase Rules aur internet check karo.", true);
+    console.error("Create room error:", error);
+
+    showMessage(
+      `Room create nahi hua: ${error.code || error.message}`,
+      true
+    );
   } finally {
-    setLoading(createRoomBtn, false, "Creating...");
+    setButtonLoading(createRoomBtn, false, "Creating...");
   }
 }
 
 async function joinRoom() {
-  const code = roomCodeInput.value.trim().toUpperCase();
+  const roomCode = roomCodeInput.value.trim().toUpperCase();
 
-  if (!/^[A-Z2-9]{6}$/.test(code)) {
-    showHomeMessage("Valid 6-character room code enter karo.", true);
+  if (!/^[A-Z2-9]{6}$/.test(roomCode)) {
+    showMessage("Sahi 6-character room code enter karo.", true);
     return;
   }
 
-  setLoading(joinRoomBtn, true, "Joining...");
-  showHomeMessage("Room join ho raha hai...");
+  setButtonLoading(joinRoomBtn, true, "Joining...");
+  showMessage("Room check ho raha hai...");
 
   try {
-    const user = await ensureSignedIn();
+    const user = await getSignedInUser();
 
-    // The rule permits adding yourself only when this room exists and has space.
-    await set(ref(database, `rooms/${code}/members/${user.uid}`), true);
-    openDashboard(code);
+    const roomSnapshot = await get(
+      ref(database, `rooms/${roomCode}/createdBy`)
+    );
+
+    if (!roomSnapshot.exists()) {
+      throw new Error("Room code nahi mila.");
+    }
+
+    await set(
+      ref(database, `rooms/${roomCode}/members/${user.uid}`),
+      true
+    );
+
+    openDashboard(roomCode);
   } catch (error) {
-    console.error("Join room failed:", error);
-    showHomeMessage("Room nahi mila, room full hai, ya code galat hai.", true);
-  } finally {
-    setLoading(joinRoomBtn, false, "Joining...");
-  }
-}
+    console.error("Join room error:", error);
 
-function formatMessageTime(timestamp) {
-  if (typeof timestamp !== "number") return "";
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(timestamp));
+    showMessage(
+      `Room join nahi hua: ${error.code || error.message}`,
+      true
+    );
+  } finally {
+    setButtonLoading(joinRoomBtn, false, "Joining...");
+  }
 }
 
 function renderMessages(snapshot) {
   chatMessages.innerHTML = "";
 
   if (!snapshot.exists()) {
-    const empty = document.createElement("p");
-    empty.className = "empty-chat";
-    empty.textContent = "Start your private conversation ❤️";
-    chatMessages.appendChild(empty);
+    const emptyMessage = document.createElement("p");
+    emptyMessage.textContent = "Start your private conversation ❤️";
+    emptyMessage.style.textAlign = "center";
+    chatMessages.appendChild(emptyMessage);
     return;
   }
 
-  snapshot.forEach((childSnapshot) => {
-    const data = childSnapshot.val();
-    if (!data || typeof data.text !== "string") return;
+  snapshot.forEach(messageSnapshot => {
+    const messageData = messageSnapshot.val();
 
-    const bubble = document.createElement("div");
-    const mine = data.senderId === currentUser?.uid;
-    bubble.className = `chat-bubble ${mine ? "sent" : "received"}`;
+    if (!messageData || typeof messageData.text !== "string") {
+      return;
+    }
 
-    const text = document.createElement("div");
-    text.textContent = data.text;
-    bubble.appendChild(text);
+    const messageBubble = document.createElement("div");
 
-    const time = document.createElement("small");
-    time.textContent = formatMessageTime(data.sentAt);
-    bubble.appendChild(time);
+    const isMyMessage =
+      messageData.senderId === currentUser?.uid;
 
-    chatMessages.appendChild(bubble);
+    messageBubble.className = isMyMessage
+      ? "chat-bubble sent"
+      : "chat-bubble received";
+
+    messageBubble.textContent = messageData.text;
+
+    chatMessages.appendChild(messageBubble);
   });
 
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function listenToMessages(code) {
-  if (unsubscribeMessages) unsubscribeMessages();
+function listenForMessages(roomCode) {
+  if (stopMessageListener) {
+    stopMessageListener();
+  }
 
-  const messagesRef = ref(database, `rooms/${code}/messages`);
-  unsubscribeMessages = onValue(
-    messagesRef,
+  const messagesReference = ref(
+    database,
+    `rooms/${roomCode}/messages`
+  );
+
+  stopMessageListener = onValue(
+    messagesReference,
     renderMessages,
-    (error) => {
-      console.error("Message listener failed:", error);
-      chatMessages.textContent = "Messages load nahi ho pa rahe.";
+    error => {
+      console.error("Messages load error:", error);
+      chatMessages.textContent =
+        `Messages load nahi hue: ${error.code || error.message}`;
     }
   );
 }
 
 async function sendMessage() {
-  const message = chatInput.value.trim();
-  if (!message || !currentRoomCode || !currentUser) return;
+  const messageText = chatInput.value.trim();
 
-  setLoading(sendMessageBtn, true, "Sending...");
+  if (!messageText || !currentRoomCode || !currentUser) {
+    return;
+  }
+
+  setButtonLoading(sendMessageBtn, true, "Sending...");
 
   try {
-    const newMessageRef = push(ref(database, `rooms/${currentRoomCode}/messages`));
-    await set(newMessageRef, {
-      text: message,
+    const newMessageReference = push(
+      ref(database, `rooms/${currentRoomCode}/messages`)
+    );
+
+    await set(newMessageReference, {
+      text: messageText,
       senderId: currentUser.uid,
       sentAt: serverTimestamp()
     });
+
     chatInput.value = "";
     chatInput.focus();
   } catch (error) {
-    console.error("Send message failed:", error);
-    alert("Message send nahi hua. Room membership ya internet check karo.");
+    console.error("Message send error:", error);
+
+    alert(
+      `Message send nahi hua: ${error.code || error.message}`
+    );
   } finally {
-    setLoading(sendMessageBtn, false, "Sending...");
+    setButtonLoading(sendMessageBtn, false, "Sending...");
   }
 }
 
-showJoinBtn.addEventListener("click", () => joinBox.classList.toggle("hidden"));
+showJoinBtn.addEventListener("click", () => {
+  joinBox.classList.toggle("hidden");
+});
+
 createRoomBtn.addEventListener("click", createRoom);
 joinRoomBtn.addEventListener("click", joinRoom);
-leaveRoomBtn.addEventListener("click", closeDashboard);
+leaveRoomBtn.addEventListener("click", leaveRoom);
 sendMessageBtn.addEventListener("click", sendMessage);
 
 roomCodeInput.addEventListener("input", () => {
-  roomCodeInput.value = roomCodeInput.value.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 6);
+  roomCodeInput.value = roomCodeInput.value
+    .toUpperCase()
+    .replace(/[^A-Z2-9]/g, "")
+    .slice(0, 6);
 });
 
-roomCodeInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") joinRoom();
+roomCodeInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    joinRoom();
+  }
 });
 
-chatInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
+chatInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
     event.preventDefault();
     sendMessage();
   }
 });
 
-document.querySelectorAll(".feature-card").forEach((card) => {
+document.querySelectorAll(".feature-card").forEach(card => {
   card.addEventListener("click", () => {
-    document.querySelectorAll(".panel").forEach((panel) => panel.classList.add("hidden"));
-    const panel = document.getElementById(card.dataset.panel);
-    if (panel) panel.classList.remove("hidden");
+    document.querySelectorAll(".panel").forEach(panel => {
+      panel.classList.add("hidden");
+    });
+
+    const selectedPanel = document.getElementById(
+      card.dataset.panel
+    );
+
+    if (selectedPanel) {
+      selectedPanel.classList.remove("hidden");
+    }
   });
 });
 
-document.querySelectorAll(".close-panel").forEach((button) => {
+document.querySelectorAll(".close-panel").forEach(button => {
   button.addEventListener("click", () => {
     const panel = button.closest(".panel");
-    if (panel) panel.classList.add("hidden");
+
+    if (panel) {
+      panel.classList.add("hidden");
+    }
   });
 });
 
 function getYouTubeId(url) {
   try {
-    const parsed = new URL(url);
-    const hostname = parsed.hostname.replace("www.", "");
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.replace("www.", "");
 
-    if (hostname === "youtu.be") return parsed.pathname.slice(1).split("/")[0];
-    if (hostname === "youtube.com" || hostname === "m.youtube.com") {
-      if (parsed.pathname === "/watch") return parsed.searchParams.get("v");
-      if (parsed.pathname.startsWith("/shorts/")) return parsed.pathname.split("/")[2];
-      if (parsed.pathname.startsWith("/embed/")) return parsed.pathname.split("/")[2];
+    if (hostname === "youtu.be") {
+      return parsedUrl.pathname.slice(1).split("/")[0];
+    }
+
+    if (
+      hostname === "youtube.com" ||
+      hostname === "m.youtube.com"
+    ) {
+      if (parsedUrl.pathname === "/watch") {
+        return parsedUrl.searchParams.get("v");
+      }
+
+      if (parsedUrl.pathname.startsWith("/shorts/")) {
+        return parsedUrl.pathname.split("/")[2];
+      }
+
+      if (parsedUrl.pathname.startsWith("/embed/")) {
+        return parsedUrl.pathname.split("/")[2];
+      }
     }
   } catch {
     return null;
   }
+
   return null;
 }
 
 loadVideoBtn.addEventListener("click", () => {
-  const videoId = getYouTubeId(videoUrlInput.value.trim());
+  const videoId = getYouTubeId(
+    videoUrlInput.value.trim()
+  );
 
-  if (!videoId || !/^[a-zA-Z0-9_-]{6,20}$/.test(videoId)) {
-    videoMessage.textContent = "Please paste a valid YouTube link.";
+  if (
+    !videoId ||
+    !/^[a-zA-Z0-9_-]{6,20}$/.test(videoId)
+  ) {
+    videoMessage.textContent =
+      "Please paste a valid YouTube link.";
+
     videoWrap.classList.add("hidden");
     videoFrame.src = "";
     return;
   }
 
   videoMessage.textContent = "";
-  videoFrame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}`;
+
+  videoFrame.src =
+    `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}`;
+
   videoWrap.classList.remove("hidden");
 });
 
 newQuestionBtn.addEventListener("click", () => {
-  const index = Math.floor(Math.random() * questions.length);
-  gameQuestion.textContent = questions[index];
+  const randomIndex = Math.floor(
+    Math.random() * questions.length
+  );
+
+  gameQuestion.textContent = questions[randomIndex];
 });
 
-const todayIndex = new Date().getDate() % loveCards.length;
-dailyLoveText.textContent = loveCards[todayIndex];
+const todayIndex =
+  new Date().getDate() % loveCards.length;
 
-function applySavedTheme() {
-  const isDark = localStorage.getItem("coupleverseTheme") === "dark";
-  document.body.classList.toggle("dark", isDark);
-  themeBtn.textContent = isDark ? "☀️" : "🌙";
-}
+dailyLoveText.textContent = loveCards[todayIndex];
 
 themeBtn.addEventListener("click", () => {
   document.body.classList.toggle("dark");
-  const isDark = document.body.classList.contains("dark");
-  themeBtn.textContent = isDark ? "☀️" : "🌙";
-  localStorage.setItem("coupleverseTheme", isDark ? "dark" : "light");
+
+  const darkMode =
+    document.body.classList.contains("dark");
+
+  themeBtn.textContent = darkMode ? "☀️" : "🌙";
+
+  localStorage.setItem(
+    "coupleverseTheme",
+    darkMode ? "dark" : "light"
+  );
 });
 
-applySavedTheme();
-if (chatNote) chatNote.textContent = "Real-time encrypted connection via Firebase. Share the room code only with your partner.";
+if (
+  localStorage.getItem("coupleverseTheme") === "dark"
+) {
+  document.body.classList.add("dark");
+  themeBtn.textContent = "☀️";
+}
 
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, async user => {
   if (!user) {
     try {
+      showMessage("Firebase se connect ho raha hai...");
+
       await signInAnonymously(auth);
     } catch (error) {
-      console.error("Anonymous sign-in failed:", error);
-      showHomeMessage("Firebase login failed. Authentication settings check karo.", true);
+      console.error("Firebase login error:", error);
+
+      showMessage(
+        `Firebase login failed: ${error.code || error.message}`,
+        true
+      );
     }
+
     return;
   }
 
   currentUser = user;
-  const savedRoom = localStorage.getItem("coupleverseRoom");
+  showMessage("");
 
-  if (savedRoom) {
-    try {
-      const membership = await get(ref(database, `rooms/${savedRoom}/members/${user.uid}`));
-      if (membership.val() === true) openDashboard(savedRoom);
-      else localStorage.removeItem("coupleverseRoom");
-    } catch (error) {
-      console.error("Saved room restore failed:", error);
+  const savedRoom =
+    localStorage.getItem("coupleverseRoom");
+
+  if (!savedRoom) {
+    return;
+  }
+
+  try {
+    const membershipSnapshot = await get(
+      ref(
+        database,
+        `rooms/${savedRoom}/members/${user.uid}`
+      )
+    );
+
+    if (membershipSnapshot.val() === true) {
+      openDashboard(savedRoom);
+    } else {
       localStorage.removeItem("coupleverseRoom");
     }
+  } catch (error) {
+    console.error("Saved room error:", error);
+    localStorage.removeItem("coupleverseRoom");
   }
 });
