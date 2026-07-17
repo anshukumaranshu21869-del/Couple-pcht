@@ -165,8 +165,8 @@ async function createRoom() {
       roomCode = generateRoomCode();
 
       const roomSnapshot = await get(
-        ref(database, `rooms/${roomCode}`)
-      );
+     ref(database, `rooms/${roomCode}/createdBy`)
+    );
 
       if (!roomSnapshot.exists()) {
         roomAlreadyExists = false;
