@@ -16,15 +16,18 @@ import {
   set
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAJ6oo2sDlhAOY_Z-igLKopxocbt8w7-GQ",
+  apiKey: "AIzaSyAJ6o02sDlhAOY_Z-iqlKopxocbt8w7-GQ",
   authDomain: "coupleverse-5af32.firebaseapp.com",
   databaseURL: "https://coupleverse-5af32-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "coupleverse-5af32",
   storageBucket: "coupleverse-5af32.firebasestorage.app",
   messagingSenderId: "720450290648",
-  appId: "1:720450290648:web:5ab2c57ac2ef44a6baa8ad"
+  appId: "1:720450290648:web:5ab2c57ac2ef44a6baa8ad",
+  measurementId: "G-09HVHYS2B4"
 };
+
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
